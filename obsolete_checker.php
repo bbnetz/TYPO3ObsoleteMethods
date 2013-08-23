@@ -57,7 +57,7 @@ class TYPO3ObsoleteMethods {
 	/**
 	 * @var array $ignoredFiles list of files to ignore
 	 */
-	protected $ignoredFiles = array('README', 'readme', 'Changelog', 'changelog');
+	protected $ignoredFiles = array('README', 'readme', 'Changelog', 'ChangeLog','changelog');
 
 	/**
 	 * @var array $checkableExtensions containing all pathes to possible Extensions
@@ -113,6 +113,18 @@ class TYPO3ObsoleteMethods {
 		$this->obsoleteStaticMethods = $this->fetchStaticMethodFromHTML($this->html);
 		$this->obsoleteNonStaticMethods = $this->fetchNonStaticMethodFromHTML($this->html);
 		$this->checkExtensions($this->checkableExtensions);
+		$output = '';
+		foreach($this->obsoleteStaticMethods as $ext ) {
+			if($ext['used'])
+				$output .= 'Static Method: '.$ext['class'].'::'.$ext['methodname'].' - '.$ext['note'].PHP_EOL;
+		}
+		foreach($this->obsoleteNonStaticMethods as $ext ) {
+			if($ext['used'])
+				$output .= 'NonStatic Method: '.$ext['class'].'::'.$ext['methodname'].' - '.$ext['note'].PHP_EOL;
+		}
+		if($output != '')
+			echo PHP_EOL.PHP_EOL.PHP_EOL.'Helping hands for your obsolete methods:'.PHP_EOL.'========================================'.PHP_EOL;
+		echo $output;
 	}
 
 	/**
@@ -173,7 +185,8 @@ class TYPO3ObsoleteMethods {
 		$method = array(
 			'class' => '',
 			'methodname' => '',
-			'note' => ''
+			'note' => '',
+			'used' => false
 			);
 		$row = str_replace(array('&gt;', '&lt;'), array('>', '<'), $row);
 		$tbs = explode('</td>', $row);
@@ -204,16 +217,35 @@ class TYPO3ObsoleteMethods {
 	 * checks the extension for obsolete static and non-static methods
 	 * Echos on Error
 	 *
-	 * @todo implement searchNonStatic
 	 * @param string $extensionPath The path to the extension 
 	 * @return void
 	 */
 	protected function checkExtension($extensionPath) {
-		foreach($this->obsoleteStaticMethods as $method) {
-			$error = $this->php_grep($method['class'].'::'.$method['methodname'], $extensionPath);
-			if($error)
-				echo $error;
+		for($i = 0; $i < count($this->obsoleteStaticMethods) -1; $i++) {
+			$filename = $this->php_grep($this->obsoleteStaticMethods[$i]['class'].'::'.$this->obsoleteStaticMethods[$i]['methodname'], $extensionPath);
+			if($filename) {
+				$filenames = explode(PHP_EOL, $filename);
+					foreach($filenames as $filename) {
+						if($filename !== '')
+							echo 'StaticMethod: '.$this->obsoleteStaticMethods[$i]['class'].'::'.$this->obsoleteStaticMethods[$i]['methodname'].' in '.$filename.PHP_EOL;
+					}
+				$this->obsoleteStaticMethods[$i]['used'] = true;
+			}
 		}
+
+		if($this->searchNonStatic)
+			for($i = 0; $i < count($this->obsoleteStaticMethods) -1; $i++) {
+				$error = $this->php_grep($this->obsoleteNonStaticMethods[$i]['class'], $extensionPath);
+				if($filename = $this->php_grep($this->obsoleteNonStaticMethods[$i]['class'], $extensionPath)) {
+					$filenames = explode(PHP_EOL, $filename);
+					foreach($filenames as $filename)
+						if(trim($filename) !== '')
+							if(strpos(file_get_contents($filename), $this->obsoleteStaticMethods[$i]['methodname']) !== FALSE) {
+								echo 'NonStaticMethod: '.$this->obsoleteStaticMethods[$i]['class'].'::'.$this->obsoleteStaticMethods[$i]['methodname'].' in '.$filename.PHP_EOL;
+								$this->obsoleteNonStaticMethods[$i]['used'] = true;
+							}
+				}
+			}
 	}
 
 	/**
@@ -235,7 +267,7 @@ class TYPO3ObsoleteMethods {
 			if(is_dir($file_full_path)) {
 				$ret .= $this->php_grep($q, $file_full_path);
 			} else if( stristr(file_get_contents($file_full_path), $q) ) {
-				$ret .= $q.' in '.$file_full_path.PHP_EOL;
+				$ret .= $file_full_path.PHP_EOL;
 			}
 		}
 		return $ret;
@@ -284,6 +316,13 @@ class TYPO3ObsoleteMethods {
 		return $files;	
 	}
 
+	/**
+	 * function getExtensionPathesByInstance
+	 * Gets all Extensions from $instancesList
+	 *
+	 * @param string $instancesList comma separated list of instances
+	 * @return array of Extensions
+	 */
 	public function getExtensionPathesByInstance($instancesList) {
 		$instancesList = explode(',', $instancesList);
 		$files = array();
@@ -293,6 +332,13 @@ class TYPO3ObsoleteMethods {
 		return $files;
 	}
 
+	/**
+	 * function getExtensionsFromSingleInstance
+	 * Checks TYPO3 Instances to get all Extensions from it
+	 *
+	 * @param string $file a path to the TYPO3 instance
+	 * @return array of Extensions
+	 */
 	public function getExtensionsFromSingleInstance($file) {
 		if($file{strlen($file)-1} != DIRECTORY_SEPARATOR ) $file .= DIRECTORY_SEPARATOR;
 		return glob($file.'typo3conf'.DIRECTORY_SEPARATOR.'ext'.DIRECTORY_SEPARATOR.'*', GLOB_ONLYDIR);
