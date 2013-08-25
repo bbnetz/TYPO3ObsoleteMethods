@@ -311,7 +311,7 @@ class TYPO3ObsoleteMethods {
 		$pathesList = explode(',', $pathesList);
 		$files = array();
 		foreach($pathesList as $file) {
-			$files[] = trim($file);
+			$files[] = realpath(trim($file));
 		}
 		return $files;	
 	}
@@ -327,7 +327,7 @@ class TYPO3ObsoleteMethods {
 		$instancesList = explode(',', $instancesList);
 		$files = array();
 		foreach($instancesList as $file) {
-			$files = array_merge($files, $this->getExtensionsFromSingleInstance(trim($file)));
+			$files = array_merge($files, $this->getExtensionsFromSingleInstance(realpath(trim($file))));
 		}
 		return $files;
 	}
